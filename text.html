@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Where am I?</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #eef7f6; margin: 0; padding: 0;}
+    .container { max-width: 520px; margin: 30px auto; background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px #0002;}
+    h2 { color: #15745a; margin-bottom: 10px;}
+    .address, .coords, .status, .distance { margin-bottom: 18px; font-size: 1.11em;}
+    button, input[type="text"] {
+      font-size: 1.05em; padding: 8px 12px; border-radius: 7px;
+      border: 1px solid #aad1b6; margin-top: 8px;
+    }
+    button { background: #1eb98e; color: #fff; border: none; font-weight: 600; cursor:pointer; margin-right: 12px;}
+    button:hover { background: #187f62;}
+    .small { font-size: .98em; color: #666;}
+    .share-links { margin:12px 0;}
+    .share-links a { margin-right:12px; }
+    .section-title { color:#1d5d42; font-weight:600; margin-top:20px;}
+    .input-row { margin-bottom: 10px;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Where am I?</h2>
+    <div class="status" id="status">Getting your location...</div>
+    <div class="coords" id="coords"></div>
+    <div class="address" id="address"></div>
+    <div class="share-links" id="share"></div>
+    
+    <div class="section-title">Check Distance to a Destination</div>
+    <div class="input-row">
+      <input type="text" id="dest" placeholder="Enter destination address or place">
+      <button onclick="calculateDistance()">Check Distance</button>
+    </div>
+    <div class="distance" id="distance"></div>
+    <div id="navigate"></div>
+  </div>
+<script>
+let userLat = null, userLon = null, userAddr = '';
+
+function showStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function showCoords(lat, lon) {
+  document.getElementById('coords').textContent = `Latitude: ${lat}, Longitude: ${lon}`;
+}
+
+function showAddress(addr) {
+  document.getElementById('address').innerHTML = '<b>Address:</b> ' + addr;
+}
+
+function showShareLinks(lat, lon, addr) {
+  // For SMS/email, build a location string
+  const locLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  let msg = `I'm here: ${addr} (${locLink})`;
+
+  let sms = `sms:?body=${encodeURIComponent(msg)}`;
+  let mail = `mailto:?subject=My location&body=${encodeURIComponent(msg)}`;
+  document.getElementById('share').innerHTML =
+    `<a href="${sms}"><button>Share via Text</button></a>
+     <a href="${mail}"><button>Share via Email</button></a>
+     <a href="${locLink}" target="_blank"><button>View on Map</button></a>`;
+}
+
+function getLocation() {
+  if (!navigator.geolocation) {
+    showStatus('Geolocation is not supported by your browser.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(success, error, {enableHighAccuracy:true});
+}
+
+function success(pos) {
+  userLat = pos.coords.latitude;
+  userLon = pos.coords.longitude;
+  showCoords(userLat, userLon);
+  showStatus('Location found!');
+  // Reverse geocode (OpenStreetMap Nominatim)
+  fetch(`https://nominatim.openstreetmap.org/reverse?lat=${userLat}&lon=${userLon}&format=json`)
+    .then(r=>r.json())
+    .then(data=>{
+      userAddr = data.display_name;
+      showAddress(userAddr);
+      showShareLinks(userLat, userLon, userAddr);
+    })
+    .catch(()=>showAddress('Unable to get address.'));
+}
+
+function error(err) {
+  showStatus('Unable to retrieve your location.');
+}
+
+getLocation();
+
+function calculateDistance() {
+  const dest = document.getElementById('dest').value.trim();
+  if (!userLat || !userLon) {
+    alert('Still getting your location. Please wait.');
+    return;
+  }
+  if (!dest) {
+    alert('Please enter a destination.');
+    return;
+  }
+  // Use OpenStreetMap search API to get destination coords
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(dest)}`)
+    .then(r=>r.json())
+    .then(arr=>{
+      if(arr.length === 0) {
+        document.getElementById('distance').textContent = "Destination not found.";
+        return;
+      }
+      let dlat = parseFloat(arr[0].lat), dlon = parseFloat(arr[0].lon);
+      // Haversine formula
+      let R = 6371; // km
+      let dphi = (dlat-userLat) * Math.PI/180;
+      let dlambda = (dlon-userLon) * Math.PI/180;
+      let a = Math.sin(dphi/2)*Math.sin(dphi/2) +
+        Math.cos(userLat*Math.PI/180)*Math.cos(dlat*Math.PI/180) *
+        Math.sin(dlambda/2)*Math.sin(dlambda/2);
+      let c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      let dist = R * c;
+      document.getElementById('distance').innerHTML = `Distance to "<b>${dest}</b>": <b>${dist.toFixed(2)} km</b>`;
+      // Google Maps directions
+      let navURL = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${dlat},${dlon}`;
+      document.getElementById('navigate').innerHTML = `<a href="${navURL}" target="_blank"><button>Navigate with Google Maps</button></a>`;
+    })
+    .catch(()=>document.getElementById('distance').textContent = "Error finding destination.");
+}
+</script>
+</body>
+</html>
