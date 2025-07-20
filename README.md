@@ -1,1 +1,1 @@
-# WhereAmI
+Where am I? A simple web app to instantly find your current address, share your location, and check the distance to any destination.  Features Get your real-time GPS location and address  Share your location via SMS or email  Enter a destination and see how far it is  Get Google Maps directions from your location  Usage Open whereami.html in your browser and allow location access  Share or navigate as needed—no installs or accounts required  Powered by OpenStreetMap and Google Maps.# WhereAmI
